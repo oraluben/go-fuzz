@@ -6,7 +6,7 @@
 package gofuzzdep
 
 import (
-	. "github.com/dvyukov/go-fuzz/go-fuzz-defs"
+	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 )
 
 // Bool is just a bool.
