@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/rpc"
@@ -16,6 +17,10 @@ import (
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 	. "github.com/oraluben/go-fuzz/internal/go-fuzz-types"
+
+	"github.com/pingcap/parser"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/format"
 )
 
 const (
@@ -58,32 +63,39 @@ type Hub struct {
 
 // InternalData is temporary struct used to help to adapt AST
 type InternalData struct {
-	data []byte
+	root ast.Node
 }
 
 func (d InternalData) hash() Sig {
-	return hash(d.data)
+	return hash(serialize(d))
 }
 
 func (d InternalData) len() int {
-	return len(d.data)
+	return len(serialize(d))
 }
 
 func serialize(d InternalData) []byte {
-	return d.data
+	return d.getInput()
 }
 
 func deserialize(raw []byte) InternalData {
-	return InternalData{data: raw}
+	node, _ := parser.New().ParseOneStmt(string(raw), "", "")
+	return InternalData{node}
 }
 
+// getInput generates the input feed to DBMS.
 func (d InternalData) getInput() []byte {
-	// generate the input feed to DBMS.
-	return serialize(d)
+	from := bytes.NewBuffer([]byte{})
+	err := d.root.Restore(format.NewRestoreCtx(format.RestoreStringSingleQuotes, from))
+	if err != nil {
+		panic(err)
+	}
+	return from.Bytes()
 }
 
 func (d InternalData) copy() InternalData {
-	return InternalData{makeCopy(d.data)}
+	node, _ := parser.New().ParseOneStmt(string(d.getInput()), "", "")
+	return InternalData{node}
 }
 
 type ROData struct {
