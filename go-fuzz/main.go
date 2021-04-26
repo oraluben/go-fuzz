@@ -39,7 +39,7 @@ var (
 	flagDup               = flag.Bool("dup", false, "collect duplicate crashers")
 	flagTestOutput        = flag.Bool("testoutput", false, "print test binary output to stdout (for debugging only)")
 	flagCoverCounters     = flag.Bool("covercounters", true, "use coverage hit counters")
-	flagSonar             = flag.Bool("sonar", true, "use sonar hints")
+	flagSonar             = flag.Bool("sonar", false, "use sonar hints")
 	flagV                 = flag.Int("v", 0, "verbosity level")
 	flagHTTP              = flag.String("http", "", "HTTP server listen address (coordinator mode only)")
 
@@ -100,8 +100,8 @@ func main() {
 			// Try the default. Best effort only.
 			var bin string
 			cfg := new(packages.Config)
-			// Note that we do not set GO111MODULE here in order to respect any GO111MODULE 
-			// setting by the user as we are finding dependencies. See modules support 
+			// Note that we do not set GO111MODULE here in order to respect any GO111MODULE
+			// setting by the user as we are finding dependencies. See modules support
 			// comments in go-fuzz-build/main.go for more details.
 			cfg.Env = os.Environ()
 			pkgs, err := packages.Load(cfg, ".")

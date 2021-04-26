@@ -11,12 +11,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/bits"
 	"os"
 	"strings"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 	. "github.com/oraluben/go-fuzz/internal/go-fuzz-types"
@@ -59,7 +57,7 @@ type Worker struct {
 
 type Input struct {
 	mine            bool
-	data            []byte
+	data            InternalData
 	cover           []byte
 	coverSize       int
 	res             int
@@ -167,7 +165,7 @@ func workerMain() {
 }
 
 func (w *Worker) loop() {
-	iter, fuzzSonarIter, versifierSonarIter := 0, 0, 0
+	iter, fuzzSonarIter := 0, 0
 	for atomic.LoadUint32(&shutdown) == 0 {
 		if len(w.crasherQueue) > 0 {
 			n := len(w.crasherQueue) - 1
@@ -175,7 +173,7 @@ func (w *Worker) loop() {
 			w.crasherQueue[n] = NewCrasherArgs{}
 			w.crasherQueue = w.crasherQueue[:n]
 			if *flagV >= 2 {
-				log.Printf("worker %v processes crasher [%v]%v", w.id, len(crash.Data), hash(crash.Data))
+				log.Printf("worker %v processes crasher [%v]%v", w.id, crash.Data.len(), crash.Data.hash())
 			}
 			w.processCrasher(crash)
 			continue
@@ -184,7 +182,7 @@ func (w *Worker) loop() {
 		select {
 		case input := <-w.hub.triageC:
 			if *flagV >= 2 {
-				log.Printf("worker %v triages coordinator input [%v]%v minimized=%v smashed=%v", w.id, len(input.Data), hash(input.Data), input.Minimized, input.Smashed)
+				log.Printf("worker %v triages coordinator input [%v]%v minimized=%v smashed=%v", w.id, input.Data.len(), input.Data.hash(), input.Minimized, input.Smashed)
 			}
 			w.triageInput(input)
 			for {
@@ -212,7 +210,7 @@ func (w *Worker) loop() {
 			w.triageQueue[n] = CoordinatorInput{}
 			w.triageQueue = w.triageQueue[:n]
 			if *flagV >= 2 {
-				log.Printf("worker %v triages local input [%v]%v minimized=%v smashed=%v", w.id, len(input.Data), hash(input.Data), input.Minimized, input.Smashed)
+				log.Printf("worker %v triages local input [%v]%v minimized=%v smashed=%v", w.id, input.Data.len(), input.Data.hash(), input.Minimized, input.Smashed)
 			}
 			w.triageInput(input)
 			continue
@@ -227,7 +225,7 @@ func (w *Worker) loop() {
 
 		// 9 out of 10 iterations are random fuzzing.
 		iter++
-		if iter%10 != 0 || ro.verse == nil {
+		if true {
 			data, depth := w.mutator.generate(ro)
 			// Every 1000-th iteration goes to sonar.
 			fuzzSonarIter++
@@ -240,20 +238,20 @@ func (w *Worker) loop() {
 				w.testInput(data, depth, execFuzz)
 			}
 		} else {
-			// 1 out of 10 iterations goes to versifier.
-			data := ro.verse.Rhyme()
-			const maxSize = MaxInputSize - 5*SonarMaxLen // need some gap for sonar replacements
-			if len(data) > maxSize {
-				data = data[:maxSize]
-			}
-			// Every 100-th versifier input goes to sonar.
-			versifierSonarIter++
-			if *flagSonar && versifierSonarIter%100 == 0 {
-				sonar := w.testInputSonar(data, 0)
-				w.processSonarData(data, sonar, 0, false)
-			} else {
-				w.testInput(data, 0, execVersifier)
-			}
+			//// 1 out of 10 iterations goes to versifier.
+			//data := ro.verse.Rhyme()
+			//const maxSize = MaxInputSize - 5*SonarMaxLen // need some gap for sonar replacements
+			//if len(data) > maxSize {
+			//	data = data[:maxSize]
+			//}
+			//// Every 100-th versifier input goes to sonar.
+			//versifierSonarIter++
+			//if *flagSonar && versifierSonarIter%100 == 0 {
+			//	sonar := w.testInputSonar(data, 0)
+			//	w.processSonarData(data, sonar, 0, false)
+			//} else {
+			//	w.testInput(data, 0, execVersifier)
+			//}
 		}
 	}
 	w.shutdown()
@@ -263,9 +261,9 @@ func (w *Worker) loop() {
 // It calculates per-input metrics like execution time, coverage mask,
 // and minimizes the input to the minimal input with the same coverage.
 func (w *Worker) triageInput(input CoordinatorInput) {
-	if len(input.Data) > MaxInputSize {
-		input.Data = input.Data[:MaxInputSize]
-	}
+	//if len(input.Data) > MaxInputSize {
+	//	input.Data = input.Data[:MaxInputSize]
+	//}
 	inp := Input{
 		data:     input.Data,
 		depth:    int(input.Prio),
@@ -309,7 +307,7 @@ func (w *Worker) triageInput(input CoordinatorInput) {
 		if !ok {
 			return // covered by somebody else
 		}
-		inp.data = w.minimizeInput(inp.data, false, func(candidate, cover, output []byte, res int, crashed, hanged bool) bool {
+		inp.data = w.minimizeInput(inp.data, false, func(candidate InternalData, cover, output []byte, res int, crashed, hanged bool) bool {
 			if crashed {
 				w.noteCrasher(candidate, output, hanged)
 				return false
@@ -336,7 +334,7 @@ func (w *Worker) triageInput(input CoordinatorInput) {
 func (w *Worker) processCrasher(crash NewCrasherArgs) {
 	// Hanging inputs can take very long time to minimize.
 	if !crash.Hanging {
-		crash.Data = w.minimizeInput(crash.Data, true, func(candidate, cover, output []byte, res int, crashed, hanged bool) bool {
+		crash.Data = w.minimizeInput(crash.Data, true, func(candidate InternalData, cover, output []byte, res int, crashed, hanged bool) bool {
 			if !crashed {
 				return false
 			}
@@ -354,94 +352,23 @@ func (w *Worker) processCrasher(crash NewCrasherArgs) {
 
 // minimizeInput applies series of minimizing transformations to data
 // and asks pred whether the input is equivalent to the original one or not.
-func (w *Worker) minimizeInput(data []byte, canonicalize bool, pred func(candidate, cover, output []byte, result int, crashed, hanged bool) bool) []byte {
-	res := make([]byte, len(data))
-	copy(res, data)
+func (w *Worker) minimizeInput(data InternalData, canonicalize bool, pred func(candidate InternalData, cover, output []byte, result int, crashed, hanged bool) bool) InternalData {
+	_ = pred
+	res := data.copy()
 	start := time.Now()
 	stat := &w.execs[execMinimizeInput]
 	if canonicalize {
 		stat = &w.execs[execMinimizeCrasher]
 	}
 
-	// First, try to cut tail.
-	for n := 1024; n != 0; n /= 2 {
-		for len(res) > n {
-			if time.Since(start) > *flagMinimize {
-				return res
-			}
-			candidate := res[:len(res)-n]
-			*stat++
-			result, _, cover, _, output, crashed, hanged := w.coverBin.test(candidate)
-			if !pred(candidate, cover, output, result, crashed, hanged) {
-				break
-			}
-			res = candidate
-		}
-	}
-
-	// Then, try to remove each individual byte.
-	tmp := make([]byte, len(res))
-	for i := 0; i < len(res); i++ {
-		if time.Since(start) > *flagMinimize {
-			return res
-		}
-		candidate := tmp[:len(res)-1]
-		copy(candidate[:i], res[:i])
-		copy(candidate[i:], res[i+1:])
-		*stat++
-		result, _, cover, _, output, crashed, hanged := w.coverBin.test(candidate)
-		if !pred(candidate, cover, output, result, crashed, hanged) {
-			continue
-		}
-		res = makeCopy(candidate)
-		i--
-	}
-
-	// Then, try to remove each possible subset of bytes.
-	for i := 0; i < len(res)-1; i++ {
-		copy(tmp, res[:i])
-		for j := len(res); j > i+1; j-- {
-			if time.Since(start) > *flagMinimize {
-				return res
-			}
-			candidate := tmp[:len(res)-j+i]
-			copy(candidate[i:], res[j:])
-			*stat++
-			result, _, cover, _, output, crashed, hanged := w.coverBin.test(candidate)
-			if !pred(candidate, cover, output, result, crashed, hanged) {
-				continue
-			}
-			res = makeCopy(candidate)
-			j = len(res)
-		}
-	}
-
-	// Then, try to replace each individual byte with '0'.
-	if canonicalize {
-		for i := 0; i < len(res); i++ {
-			if res[i] == '0' {
-				continue
-			}
-			if time.Since(start) > *flagMinimize {
-				return res
-			}
-			candidate := tmp[:len(res)]
-			copy(candidate, res)
-			candidate[i] = '0'
-			*stat++
-			result, _, cover, _, output, crashed, hanged := w.coverBin.test(candidate)
-			if !pred(candidate, cover, output, result, crashed, hanged) {
-				continue
-			}
-			res = makeCopy(candidate)
-		}
-	}
+	// todo: byte reduction logic removed, add SQL reduction here.
+	_, _ = start, stat
 
 	return res
 }
 
 // smash gives some minimal attention to every new input.
-func (w *Worker) smash(data []byte, depth int) {
+func (w *Worker) smash(data InternalData, depth int) {
 	ro := w.hub.ro.Load().(*ROData)
 
 	// Pass it through sonar.
@@ -450,135 +377,7 @@ func (w *Worker) smash(data []byte, depth int) {
 		w.processSonarData(data, sonar, depth, true)
 	}
 
-	// Flip each bit one-by-one.
-	for i := 0; i < len(data)*8; i++ {
-		data[i/8] ^= 1 << uint(i%8)
-		w.testInput(data, depth, execSmash)
-		data[i/8] ^= 1 << uint(i%8)
-	}
-
-	// Two walking bits.
-	for i := 0; i < len(data)*8-1; i++ {
-		data[i/8] ^= 1 << uint(i%8)
-		data[(i+1)/8] ^= 1 << uint((i+1)%8)
-		w.testInput(data, depth, execSmash)
-		data[i/8] ^= 1 << uint(i%8)
-		data[(i+1)/8] ^= 1 << uint((i+1)%8)
-	}
-
-	// Four walking bits.
-	for i := 0; i < len(data)*8-3; i++ {
-		data[i/8] ^= 1 << uint(i%8)
-		data[(i+1)/8] ^= 1 << uint((i+1)%8)
-		data[(i+2)/8] ^= 1 << uint((i+2)%8)
-		data[(i+3)/8] ^= 1 << uint((i+3)%8)
-		w.testInput(data, depth, execSmash)
-		data[i/8] ^= 1 << uint(i%8)
-		data[(i+1)/8] ^= 1 << uint((i+1)%8)
-		data[(i+2)/8] ^= 1 << uint((i+2)%8)
-		data[(i+3)/8] ^= 1 << uint((i+3)%8)
-	}
-
-	// Byte flip.
-	for i := 0; i < len(data); i++ {
-		data[i] ^= 0xff
-		w.testInput(data, depth, execSmash)
-		data[i] ^= 0xff
-	}
-
-	// Two walking bytes.
-	for i := 0; i < len(data)-1; i++ {
-		data[i] ^= 0xff
-		data[i+1] ^= 0xff
-		w.testInput(data, depth, execSmash)
-		data[i] ^= 0xff
-		data[i+1] ^= 0xff
-	}
-
-	// Four walking bytes.
-	for i := 0; i < len(data)-3; i++ {
-		data[i] ^= 0xff
-		data[i+1] ^= 0xff
-		data[i+2] ^= 0xff
-		data[i+3] ^= 0xff
-		w.testInput(data, depth, execSmash)
-		data[i] ^= 0xff
-		data[i+1] ^= 0xff
-		data[i+2] ^= 0xff
-		data[i+3] ^= 0xff
-	}
-
-	// Increment/decrement every byte.
-	for i := 0; i < len(data); i++ {
-		for j := uint8(1); j <= 4; j++ {
-			data[i] += j
-			w.testInput(data, depth, execSmash)
-			data[i] -= j
-			data[i] -= j
-			w.testInput(data, depth, execSmash)
-			data[i] += j
-		}
-	}
-
-	// Set bytes to interesting values.
-	for i := 0; i < len(data); i++ {
-		v := data[i]
-		for _, x := range interesting8 {
-			data[i] = uint8(x)
-			w.testInput(data, depth, execSmash)
-		}
-		data[i] = v
-	}
-
-	// Set words to interesting values.
-	for i := 0; i < len(data)-1; i++ {
-		p := (*int16)(unsafe.Pointer(&data[i]))
-		v := *p
-		for _, x := range interesting16 {
-			*p = x
-			w.testInput(data, depth, execSmash)
-			if x != 0 && x != -1 {
-				*p = int16(bits.ReverseBytes16(uint16(x)))
-				w.testInput(data, depth, execSmash)
-			}
-		}
-		*p = v
-	}
-
-	// Set double-words to interesting values.
-	for i := 0; i < len(data)-3; i++ {
-		p := (*int32)(unsafe.Pointer(&data[i]))
-		v := *p
-		for _, x := range interesting32 {
-			*p = x
-			w.testInput(data, depth, execSmash)
-			if x != 0 && x != -1 {
-				*p = int32(bits.ReverseBytes32(uint32(x)))
-				w.testInput(data, depth, execSmash)
-			}
-		}
-		*p = v
-	}
-
-	// Trim after every byte.
-	for i := 1; i < len(data); i++ {
-		tmp := data[:i]
-		w.testInput(tmp, depth, execSmash)
-	}
-
-	// Insert a byte after every byte.
-	tmp := make([]byte, len(data)+1)
-	if len(tmp) > MaxInputSize {
-		tmp = tmp[:MaxInputSize]
-	}
-	for i := 0; i <= len(data) && i < MaxInputSize-1; i++ {
-		copy(tmp, data[:i])
-		copy(tmp[i+1:], data[i:])
-		tmp[i] = 0
-		w.testInput(tmp, depth, execSmash)
-		tmp[i] = 'a'
-		w.testInput(tmp, depth, execSmash)
-	}
+	// todo: byte smash removed, add SQL's
 
 	// Do a bunch of random mutations so that this input catches up with the rest.
 	for i := 0; i < 1e4; i++ {
@@ -587,18 +386,18 @@ func (w *Worker) smash(data []byte, depth int) {
 	}
 }
 
-func (w *Worker) testInput(data []byte, depth int, typ execType) {
+func (w *Worker) testInput(data InternalData, depth int, typ execType) {
 	w.testInputImpl(w.coverBin, data, depth, typ)
 }
 
-func (w *Worker) testInputSonar(data []byte, depth int) (sonar []byte) {
+func (w *Worker) testInputSonar(data InternalData, depth int) (sonar []byte) {
 	return w.testInputImpl(w.sonarBin, data, depth, execSonar)
 }
 
-func (w *Worker) testInputImpl(bin *TestBinary, data []byte, depth int, typ execType) (sonar []byte) {
+func (w *Worker) testInputImpl(bin *TestBinary, data InternalData, depth int, typ execType) (sonar []byte) {
 	ro := w.hub.ro.Load().(*ROData)
 	if len(ro.badInputs) > 0 {
-		if _, ok := ro.badInputs[hash(data)]; ok {
+		if _, ok := ro.badInputs[data.hash()]; ok {
 			return nil // no, thanks
 		}
 	}
@@ -612,24 +411,24 @@ func (w *Worker) testInputImpl(bin *TestBinary, data []byte, depth int, typ exec
 	return sonar
 }
 
-func (w *Worker) noteNewInput(data, cover []byte, res, depth int, typ execType) {
+func (w *Worker) noteNewInput(data InternalData, cover []byte, res, depth int, typ execType) {
 	if res < 0 {
 		// User said to not add this input to corpus.
 		return
 	}
 	if w.hub.updateMaxCover(cover) {
-		w.triageQueue = append(w.triageQueue, CoordinatorInput{makeCopy(data), uint64(depth), typ, false, false})
+		w.triageQueue = append(w.triageQueue, CoordinatorInput{data.copy(), uint64(depth), typ, false, false})
 	}
 }
 
-func (w *Worker) noteCrasher(data, output []byte, hanged bool) {
+func (w *Worker) noteCrasher(data InternalData, output []byte, hanged bool) {
 	ro := w.hub.ro.Load().(*ROData)
 	supp := extractSuppression(output)
 	if _, ok := ro.suppressions[hash(supp)]; ok {
 		return
 	}
 	w.crasherQueue = append(w.crasherQueue, NewCrasherArgs{
-		Data:        makeCopy(data),
+		Data:        data.copy(),
 		Error:       output,
 		Suppression: supp,
 		Hanging:     hanged,

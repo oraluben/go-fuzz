@@ -56,6 +56,36 @@ type Hub struct {
 	corpusOrigins [execCount]uint64
 }
 
+// InternalData is temporary struct used to help to adapt AST
+type InternalData struct {
+	data []byte
+}
+
+func (d InternalData) hash() Sig {
+	return hash(d.data)
+}
+
+func (d InternalData) len() int {
+	return len(d.data)
+}
+
+func serialize(d InternalData) []byte {
+	return d.data
+}
+
+func deserialize(raw []byte) InternalData {
+	return InternalData{data: raw}
+}
+
+func (d InternalData) getInput() []byte {
+	// generate the input feed to DBMS.
+	return serialize(d)
+}
+
+func (d InternalData) copy() InternalData {
+	return InternalData{makeCopy(d.data)}
+}
+
 type ROData struct {
 	corpus       []Input
 	corpusCover  []byte
@@ -224,14 +254,14 @@ func (hub *Hub) loop() {
 			if !compareCover(ro.corpusCover, input.cover) {
 				break
 			}
-			sig := hash(input.data)
+			sig := input.data.hash()
 			if _, ok := hub.corpusSigs[sig]; ok {
 				break
 			}
 
 			// Passed deduplication, taking it.
 			if *flagV >= 2 {
-				log.Printf("hub received new input [%v]%v mine=%v", len(input.data), hash(input.data), input.mine)
+				log.Printf("hub received new input [%v]%v mine=%v", input.data.len(), input.data.hash(), input.mine)
 			}
 			hub.corpusSigs[sig] = struct{}{}
 			ro1 := new(ROData)
@@ -249,7 +279,7 @@ func (hub *Hub) loop() {
 			ro1.corpusCover = makeCopy(ro.corpusCover)
 			hub.corpusCoverSize = updateMaxCover(ro1.corpusCover, input.cover)
 			if input.res > 0 || input.typ == execBootstrap {
-				ro1.verse = versifier.BuildVerse(ro.verse, input.data)
+				ro1.verse = versifier.BuildVerse(ro.verse, serialize(input.data))
 			}
 			hub.ro.Store(ro1)
 			hub.corpusOrigins[input.typ]++
@@ -279,7 +309,7 @@ func (hub *Hub) loop() {
 					for k, v := range ro.badInputs {
 						ro1.badInputs[k] = v
 					}
-					ro1.badInputs[hash(crash.Data)] = struct{}{}
+					ro1.badInputs[crash.Data.hash()] = struct{}{}
 				}
 				if !*flagDup {
 					ro1.suppressions = make(map[Sig]struct{})

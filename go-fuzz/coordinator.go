@@ -200,7 +200,7 @@ type ConnectRes struct {
 
 // CoordinatorInput is description of input that is passed between coordinator and worker.
 type CoordinatorInput struct {
-	Data      []byte
+	Data      InternalData
 	Prio      uint64
 	Type      execType
 	Minimized bool
@@ -222,14 +222,14 @@ func (c *Coordinator) Connect(a *ConnectArgs, r *ConnectRes) error {
 	r.ID = w.id
 	// Give the worker initial corpus.
 	for _, a := range c.corpus.m {
-		r.Corpus = append(r.Corpus, CoordinatorInput{a.data, a.meta, execCorpus, !a.user, true})
+		r.Corpus = append(r.Corpus, CoordinatorInput{deserialize(a.data), a.meta, execCorpus, !a.user, true})
 	}
 	return nil
 }
 
 type NewInputArgs struct {
 	ID   int
-	Data []byte
+	Data InternalData
 	Prio uint64
 }
 
@@ -243,7 +243,7 @@ func (c *Coordinator) NewInput(a *NewInputArgs, r *int) error {
 		return errors.New("unknown worker")
 	}
 
-	art := Artifact{a.Data, a.Prio, false}
+	art := Artifact{serialize(a.Data), a.Prio, false}
 	if !c.corpus.add(art) {
 		return nil
 	}
@@ -257,39 +257,40 @@ func (c *Coordinator) NewInput(a *NewInputArgs, r *int) error {
 }
 
 type NewCrasherArgs struct {
-	Data        []byte
+	Data        InternalData
 	Error       []byte
 	Suppression []byte
 	Hanging     bool
 }
 
 // NewCrasher saves new crasher input on coordinator.
-func (c *Coordinator) NewCrasher(a *NewCrasherArgs, r *int) error {
+func (c *Coordinator) NewCrasher(a *NewCrasherArgs, _ *int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if !*flagDup && !c.suppressions.add(Artifact{a.Suppression, 0, false}) {
 		return nil // Already have this.
 	}
-	if !c.crashers.add(Artifact{a.Data, 0, false}) {
+	data := serialize(a.Data)
+	if !c.crashers.add(Artifact{data, 0, false}) {
 		return nil // Already have this.
 	}
 
 	// Prepare quoted version of input to simplify creation of standalone reproducers.
 	var buf bytes.Buffer
-	for i := 0; i < len(a.Data); i += 20 {
+	for i := 0; i < len(data); i += 20 {
 		e := i + 20
-		if e > len(a.Data) {
-			e = len(a.Data)
+		if e > len(data) {
+			e = len(data)
 		}
-		fmt.Fprintf(&buf, "\t%q", a.Data[i:e])
-		if e != len(a.Data) {
+		fmt.Fprintf(&buf, "\t%q", data[i:e])
+		if e != len(data) {
 			fmt.Fprintf(&buf, " +")
 		}
 		fmt.Fprintf(&buf, "\n")
 	}
-	c.crashers.addDescription(a.Data, buf.Bytes(), "quoted")
-	c.crashers.addDescription(a.Data, a.Error, "output")
+	c.crashers.addDescription(data, buf.Bytes(), "quoted")
+	c.crashers.addDescription(data, a.Error, "output")
 
 	return nil
 }

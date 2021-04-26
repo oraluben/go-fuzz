@@ -8,10 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"log"
-	"path/filepath"
-	"strconv"
 	"sync"
-	"unicode"
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 )
@@ -81,171 +78,10 @@ func (w *Worker) parseSonarData(sonar []byte) (res []SonarSample) {
 	return res
 }
 
-func (w *Worker) processSonarData(data, sonar []byte, depth int, smash bool) {
-	ro := w.hub.ro.Load().(*ROData)
-	updated := false
-	checked := make(map[string]struct{})
-	samples := w.parseSonarData(sonar)
-	for _, sam := range samples {
-		// TODO: extract literal corpus from sonar instead of from source.
-		// This should give smaller, better corpus which does not contain literals from dead code.
-
-		// TODO: detect loop counters (small incrementing/decrementing values on the same site).
-		// Either ignore them or handle differently (e.g. alter a string length).
-
-		site := sam.site
-		flags := sam.flags
-		v1 := sam.val[0]
-		v2 := sam.val[1]
-		res := sam.evaluate()
-		// Ignore sites that has at least one const operand and
-		// are already taken both ways enough times.
-		upd, skip := site.update(sam, smash, res)
-		if upd {
-			updated = true
-		}
-		if skip {
-			continue
-		}
-		if smash && bytes.Equal(v1, v2) {
-			// We systematically mutate all bytes during smashing,
-			// no point in trying to break equality here.
-			continue
-		}
-		testInput := func(tmp []byte) {
-			w.testInput(tmp, depth+1, execSonarHint)
-		}
-		check := func(indexdata, v1, v2 []byte) {
-			if len(v1) == 0 || bytes.Equal(v1, v2) || !bytes.Contains(indexdata, v1) {
-				return
-			}
-			if len(indexdata) != len(data) {
-				// We use indices into indexdata to construct indices into data below.
-				// If they don't have the same size, this operation is nonsensical and may panic.
-				panic("len(indexdata) != len(data)")
-			}
-			vv := string(v1) + "\t|\t" + string(v2)
-			if _, ok := checked[vv]; ok {
-				return
-			}
-			checked[vv] = struct{}{}
-			pos := 0
-			for {
-				i := bytes.Index(indexdata[pos:], v1)
-				if i == -1 {
-					break
-				}
-				i += pos
-				pos = i + 1
-				tmp := make([]byte, len(data)-len(v1)+len(v2))
-				copy(tmp, data[:i])
-				copy(tmp[i:], v2)
-				copy(tmp[i+len(v2):], data[i+len(v1):])
-				if len(tmp) > CoverSize {
-					tmp = tmp[:CoverSize]
-				}
-				testInput(tmp)
-				if flags&SonarString != 0 && len(v1) != len(v2) && len(tmp) < CoverSize {
-					// Update length field.
-					// TODO: handle multi-byte/big-endian/base-128 length fields.
-					diff := byte(len(v2) - len(v1))
-					for idx := i - 1; idx >= 0 && idx+5 >= i; idx-- {
-						tmp[idx] += diff
-						testInput(tmp)
-						tmp[idx] -= diff
-					}
-				}
-			}
-		}
-		check1 := func(v1, v2 []byte) {
-			check(data, v1, v2)
-			// TODO: for strings check upper/lower case.
-			if flags&SonarString != 0 {
-				if bytes.Equal(v1, bytes.ToLower(v1)) && bytes.Equal(v2, bytes.ToLower(v2)) {
-					if lower := bytes.ToLower(data); len(lower) == len(data) {
-						check(lower, v1, v2)
-					}
-				}
-				if bytes.Equal(v1, bytes.ToUpper(v1)) && bytes.Equal(v2, bytes.ToUpper(v2)) {
-					if upper := bytes.ToUpper(data); len(upper) == len(data) {
-						check(upper, v1, v2)
-					}
-				}
-			} else {
-				// Try several common wire encodings of the values:
-				// network format (big endian), hex, base-128.
-				// TODO: try more encodings if it proves to be useful:
-				// base-64, quoted-printable, xml-escaping, hex+increment/decrement.
-
-				if len(v1) == 1 && len(v2) == 1 && unicode.IsLower(rune(v1[0])) && unicode.IsLower(rune(v2[0])) {
-					if lower := bytes.ToLower(data); len(lower) == len(data) {
-						check(lower, v1, v2)
-					}
-				}
-				if len(v1) == 1 && len(v2) == 1 && unicode.IsUpper(rune(v1[0])) && unicode.IsUpper(rune(v2[0])) {
-					if upper := bytes.ToUpper(data); len(upper) == len(data) {
-						check(upper, v1, v2)
-					}
-				}
-
-				// Increment and decrement take care of less and greater comparison operators
-				// as well as of off-by-one bugs.
-				check(data, v1, increment(v2))
-				check(data, v1, decrement(v2))
-
-				// Also try big-endian increments/decrements.
-				if len(v1) > 1 {
-					check(data, reverse(v1), reverse(v2))
-					check(data, reverse(v1), reverse(increment(v2)))
-					check(data, reverse(v1), reverse(decrement(v2)))
-					check(data, v1, reverse(increment(reverse(v2))))
-					check(data, v1, reverse(decrement(reverse(v2))))
-				}
-
-				// Base-128.
-				// TODO: try to treat the value as negative.
-				var u1, u2 uint64
-				for i := 0; i < len(v1); i++ {
-					u1 += uint64(v1[i]) << uint(i*8)
-				}
-				for i := 0; i < len(v2); i++ {
-					u2 += uint64(v2[i]) << uint(i*8)
-				}
-				if u1 > 127 || u2 > 127 { // otherwise it's the same as byte replacement
-					var vv1, vv2 [10]byte
-					n1 := binary.PutUvarint(vv1[:], u1)
-					n2 := binary.PutUvarint(vv2[:], u2)
-					check(data, vv1[:n1], vv2[:n2])
-
-					// Increment/decrement in base-128.
-					n1 = binary.PutUvarint(vv1[:], u1+1)
-					n2 = binary.PutUvarint(vv2[:], u2+1)
-					check(data, vv1[:n1], vv2[:n2])
-					n1 = binary.PutUvarint(vv1[:], u1-1)
-					n2 = binary.PutUvarint(vv2[:], u2-1)
-					check(data, vv1[:n1], vv2[:n2])
-				}
-
-				// Ascii-encoding.
-				// TODO: try to treat the value as negative.
-				s1 := strconv.FormatUint(u1, 10)
-				s2 := strconv.FormatUint(u2, 10)
-				check(data, []byte(s1), []byte(s2))
-			}
-			check(data, []byte(hex.EncodeToString(v1)), []byte(hex.EncodeToString(v2)))
-		}
-		if flags&SonarConst1 == 0 {
-			check1(v1, v2)
-		}
-		if flags&SonarConst2 == 0 {
-			check1(v2, v1)
-		}
-	}
-	if updated && *flagDumpCover {
-		dumpMu.Lock()
-		defer dumpMu.Unlock()
-		dumpSonar(filepath.Join(*flagWorkdir, "sonarprofile"), ro.sonarSites)
-	}
+func (w *Worker) processSonarData(data InternalData, sonar []byte, depth int, smash bool) {
+	// Sonar is not necessary, for we guarantee every input is valid.
+	// However I'm not 100% sure that my understanding of sonar is correct.
+	panic("sonar disabled")
 }
 
 var dumpMu sync.Mutex

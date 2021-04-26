@@ -100,8 +100,8 @@ func (bin *TestBinary) close() {
 	os.Remove(bin.commFile)
 }
 
-func (bin *TestBinary) test(data []byte) (res int, ns uint64, cover, sonar, output []byte, crashed, hanged bool) {
-	if len(data) > MaxInputSize {
+func (bin *TestBinary) test(data InternalData) (res int, ns uint64, cover, sonar, output []byte, crashed, hanged bool) {
+	if data.len() > MaxInputSize {
 		panic("input is too large")
 	}
 	for {
@@ -255,10 +255,12 @@ retry:
 }
 
 // test passes data for testing.
-func (t *Testee) test(data []byte) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
+func (t *Testee) test(data InternalData) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
 	if t.down {
 		log.Fatalf("cannot test: testee is already shutdown")
 	}
+
+	text_data := data.getInput()
 
 	// The test binary can accumulate significant amount of memory,
 	// so we recreate it periodically.
@@ -269,10 +271,10 @@ func (t *Testee) test(data []byte) (res int, ns uint64, cover, sonar []byte, cra
 		return
 	}
 
-	copy(t.inputRegion[:], data)
+	copy(t.inputRegion[:], text_data)
 	atomic.StoreInt64(&t.startTime, time.Now().UnixNano())
 	t.writebuf[0] = t.fnidx
-	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(data)))
+	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(text_data)))
 	if _, err := t.outPipe.Write(t.writebuf[:]); err != nil {
 		if *flagV >= 1 {
 			log.Printf("write to testee failed: %v", err)
