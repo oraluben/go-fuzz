@@ -35,7 +35,7 @@ func (m *Mutator) randByteOrder() binary.ByteOrder {
 	return binary.BigEndian
 }
 
-func (m *Mutator) generate(ro *ROData) (InternalData, int) {
+func (m *Mutator) generate(ro *ROData) (SqlWrap, int) {
 	corpus := ro.corpus
 	scoreSum := corpus[len(corpus)-1].runningScoreSum
 	weightedIdx := m.rand(scoreSum)
@@ -46,12 +46,13 @@ func (m *Mutator) generate(ro *ROData) (InternalData, int) {
 	return m.mutate(input.data, ro), input.depth + 1
 }
 
-func (m *Mutator) mutate(data InternalData, ro *ROData) InternalData {
+func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 	_ = ro.corpus
 	res := data.copy()
 	nm := 1 + m.r.Exp2()
 	for iter := 0; iter < nm; iter++ {
-		// mutation here
+		// todo: mutate here
+		break
 	}
 	if res.len() > MaxInputSize {
 		// todo: trunk ast

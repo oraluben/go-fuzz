@@ -57,7 +57,7 @@ type Worker struct {
 
 type Input struct {
 	mine            bool
-	data            InternalData
+	data            SqlWrap
 	cover           []byte
 	coverSize       int
 	res             int
@@ -307,7 +307,7 @@ func (w *Worker) triageInput(input CoordinatorInput) {
 		if !ok {
 			return // covered by somebody else
 		}
-		inp.data = w.minimizeInput(inp.data, false, func(candidate InternalData, cover, output []byte, res int, crashed, hanged bool) bool {
+		inp.data = w.minimizeInput(inp.data, false, func(candidate SqlWrap, cover, output []byte, res int, crashed, hanged bool) bool {
 			if crashed {
 				w.noteCrasher(candidate, output, hanged)
 				return false
@@ -334,7 +334,7 @@ func (w *Worker) triageInput(input CoordinatorInput) {
 func (w *Worker) processCrasher(crash NewCrasherArgs) {
 	// Hanging inputs can take very long time to minimize.
 	if !crash.Hanging {
-		crash.Data = w.minimizeInput(crash.Data, true, func(candidate InternalData, cover, output []byte, res int, crashed, hanged bool) bool {
+		crash.Data = w.minimizeInput(crash.Data, true, func(candidate SqlWrap, cover, output []byte, res int, crashed, hanged bool) bool {
 			if !crashed {
 				return false
 			}
@@ -352,7 +352,7 @@ func (w *Worker) processCrasher(crash NewCrasherArgs) {
 
 // minimizeInput applies series of minimizing transformations to data
 // and asks pred whether the input is equivalent to the original one or not.
-func (w *Worker) minimizeInput(data InternalData, canonicalize bool, pred func(candidate InternalData, cover, output []byte, result int, crashed, hanged bool) bool) InternalData {
+func (w *Worker) minimizeInput(data SqlWrap, canonicalize bool, pred func(candidate SqlWrap, cover, output []byte, result int, crashed, hanged bool) bool) SqlWrap {
 	_ = pred
 	res := data.copy()
 	start := time.Now()
@@ -368,7 +368,7 @@ func (w *Worker) minimizeInput(data InternalData, canonicalize bool, pred func(c
 }
 
 // smash gives some minimal attention to every new input.
-func (w *Worker) smash(data InternalData, depth int) {
+func (w *Worker) smash(data SqlWrap, depth int) {
 	ro := w.hub.ro.Load().(*ROData)
 
 	// Pass it through sonar.
@@ -386,15 +386,15 @@ func (w *Worker) smash(data InternalData, depth int) {
 	}
 }
 
-func (w *Worker) testInput(data InternalData, depth int, typ execType) {
+func (w *Worker) testInput(data SqlWrap, depth int, typ execType) {
 	w.testInputImpl(w.coverBin, data, depth, typ)
 }
 
-func (w *Worker) testInputSonar(data InternalData, depth int) (sonar []byte) {
+func (w *Worker) testInputSonar(data SqlWrap, depth int) (sonar []byte) {
 	return w.testInputImpl(w.sonarBin, data, depth, execSonar)
 }
 
-func (w *Worker) testInputImpl(bin *TestBinary, data InternalData, depth int, typ execType) (sonar []byte) {
+func (w *Worker) testInputImpl(bin *TestBinary, data SqlWrap, depth int, typ execType) (sonar []byte) {
 	ro := w.hub.ro.Load().(*ROData)
 	if len(ro.badInputs) > 0 {
 		if _, ok := ro.badInputs[data.hash()]; ok {
@@ -411,7 +411,7 @@ func (w *Worker) testInputImpl(bin *TestBinary, data InternalData, depth int, ty
 	return sonar
 }
 
-func (w *Worker) noteNewInput(data InternalData, cover []byte, res, depth int, typ execType) {
+func (w *Worker) noteNewInput(data SqlWrap, cover []byte, res, depth int, typ execType) {
 	if res < 0 {
 		// User said to not add this input to corpus.
 		return
@@ -421,7 +421,7 @@ func (w *Worker) noteNewInput(data InternalData, cover []byte, res, depth int, t
 	}
 }
 
-func (w *Worker) noteCrasher(data InternalData, output []byte, hanged bool) {
+func (w *Worker) noteCrasher(data SqlWrap, output []byte, hanged bool) {
 	ro := w.hub.ro.Load().(*ROData)
 	supp := extractSuppression(output)
 	if _, ok := ro.suppressions[hash(supp)]; ok {

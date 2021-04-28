@@ -100,7 +100,7 @@ func (bin *TestBinary) close() {
 	os.Remove(bin.commFile)
 }
 
-func (bin *TestBinary) test(data InternalData) (res int, ns uint64, cover, sonar, output []byte, crashed, hanged bool) {
+func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, output []byte, crashed, hanged bool) {
 	if data.len() > MaxInputSize {
 		panic("input is too large")
 	}
@@ -255,7 +255,7 @@ retry:
 }
 
 // test passes data for testing.
-func (t *Testee) test(data InternalData) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
+func (t *Testee) test(data SqlWrap) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
 	if t.down {
 		log.Fatalf("cannot test: testee is already shutdown")
 	}

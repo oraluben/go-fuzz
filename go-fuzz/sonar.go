@@ -78,7 +78,7 @@ func (w *Worker) parseSonarData(sonar []byte) (res []SonarSample) {
 	return res
 }
 
-func (w *Worker) processSonarData(data InternalData, sonar []byte, depth int, smash bool) {
+func (w *Worker) processSonarData(data SqlWrap, sonar []byte, depth int, smash bool) {
 	// Sonar is not necessary, for we guarantee every input is valid.
 	// However I'm not 100% sure that my understanding of sonar is correct.
 	panic("sonar disabled")

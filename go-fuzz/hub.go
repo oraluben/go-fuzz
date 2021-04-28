@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net/rpc"
@@ -20,7 +19,7 @@ import (
 
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/format"
+	_ "github.com/pingcap/tidb/types/parser_driver"
 )
 
 const (
@@ -61,41 +60,42 @@ type Hub struct {
 	corpusOrigins [execCount]uint64
 }
 
-// InternalData is temporary struct used to help to adapt AST
-type InternalData struct {
+// SqlWrap is temporary struct used to help to adapt AST
+type SqlWrap struct {
 	root ast.Node
+	Text string
 }
 
-func (d InternalData) hash() Sig {
+func (d SqlWrap) hash() Sig {
 	return hash(serialize(d))
 }
 
-func (d InternalData) len() int {
+func (d SqlWrap) len() int {
 	return len(serialize(d))
 }
 
-func serialize(d InternalData) []byte {
+func serialize(d SqlWrap) []byte {
 	return d.getInput()
 }
 
-func deserialize(raw []byte) InternalData {
-	node, _ := parser.New().ParseOneStmt(string(raw), "", "")
-	return InternalData{node}
-}
-
-// getInput generates the input feed to DBMS.
-func (d InternalData) getInput() []byte {
-	from := bytes.NewBuffer([]byte{})
-	err := d.root.Restore(format.NewRestoreCtx(format.RestoreStringSingleQuotes, from))
+func deserialize(raw []byte) SqlWrap {
+	text := string(raw)
+	node, err := parser.New().ParseOneStmt(text, "", "")
 	if err != nil {
 		panic(err)
 	}
-	return from.Bytes()
+	return SqlWrap{node, text}
 }
 
-func (d InternalData) copy() InternalData {
-	node, _ := parser.New().ParseOneStmt(string(d.getInput()), "", "")
-	return InternalData{node}
+// getInput generates the input feed to DBMS.
+func (d SqlWrap) getInput() []byte {
+	return []byte(d.Text)
+}
+
+func (d SqlWrap) copy() SqlWrap {
+	text := string(d.getInput())
+	node, _ := parser.New().ParseOneStmt(text, "", "")
+	return SqlWrap{node, text}
 }
 
 type ROData struct {

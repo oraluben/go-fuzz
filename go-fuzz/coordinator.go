@@ -58,7 +58,7 @@ func coordinatorMain(ln net.Listener) {
 	m.crashers = newPersistentSet(filepath.Join(*flagWorkdir, "crashers"))
 	m.corpus = newPersistentSet(filepath.Join(*flagWorkdir, "corpus"))
 	if len(m.corpus.m) == 0 {
-		m.corpus.add(Artifact{[]byte{}, 0, false})
+		m.corpus.add(Artifact{[]byte("SELECT 1;"), 0, false})
 	}
 
 	m.workers = make(map[int]*CoordinatorWorker)
@@ -200,7 +200,7 @@ type ConnectRes struct {
 
 // CoordinatorInput is description of input that is passed between coordinator and worker.
 type CoordinatorInput struct {
-	Data      InternalData
+	Data      SqlWrap
 	Prio      uint64
 	Type      execType
 	Minimized bool
@@ -229,7 +229,7 @@ func (c *Coordinator) Connect(a *ConnectArgs, r *ConnectRes) error {
 
 type NewInputArgs struct {
 	ID   int
-	Data InternalData
+	Data SqlWrap
 	Prio uint64
 }
 
@@ -257,7 +257,7 @@ func (c *Coordinator) NewInput(a *NewInputArgs, r *int) error {
 }
 
 type NewCrasherArgs struct {
-	Data        InternalData
+	Data        SqlWrap
 	Error       []byte
 	Suppression []byte
 	Hanging     bool
