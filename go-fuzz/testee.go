@@ -260,7 +260,7 @@ func (t *Testee) test(data SqlWrap) (res int, ns uint64, cover, sonar []byte, cr
 		log.Fatalf("cannot test: testee is already shutdown")
 	}
 
-	text_data := data.getInput()
+	textData := data.getInput()
 
 	// The test binary can accumulate significant amount of memory,
 	// so we recreate it periodically.
@@ -271,10 +271,10 @@ func (t *Testee) test(data SqlWrap) (res int, ns uint64, cover, sonar []byte, cr
 		return
 	}
 
-	copy(t.inputRegion[:], text_data)
+	copy(t.inputRegion[:], textData)
 	atomic.StoreInt64(&t.startTime, time.Now().UnixNano())
 	t.writebuf[0] = t.fnidx
-	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(text_data)))
+	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(textData)))
 	if _, err := t.outPipe.Write(t.writebuf[:]); err != nil {
 		if *flagV >= 1 {
 			log.Printf("write to testee failed: %v", err)

@@ -12,5 +12,5 @@ require (
 
 replace (
 	github.com/oraluben/go-fuzz => ./
-	github.com/pingcap/tidb v2.0.11+incompatible => github.com/oraluben/tidb v1.1.0-beta.0.20210428004842-82327ebaba06
+	github.com/pingcap/tidb v2.0.11+incompatible => github.com/oraluben/tidb v1.1.0-beta.0.20210429065249-2f5074f8cc9f
 )

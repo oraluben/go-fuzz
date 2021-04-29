@@ -13,7 +13,7 @@ package base
 const (
 	CoverSize       = 64 << 10
 	MaxInputSize    = 1 << 20
-	SonarRegionSize = 1 << 20
+	SonarRegionSize = 0 << 20 // sonar not enabled
 )
 
 const (
