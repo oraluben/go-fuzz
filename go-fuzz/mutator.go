@@ -5,6 +5,8 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
+	squirrel "github.com/pragmatwice/go-squirrel/mutator"
 	"sort"
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
@@ -49,13 +51,25 @@ func (m *Mutator) generate(ro *ROData) (SqlWrap, int) {
 func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 	_ = ro.corpus
 	res := data.copy()
+
+	var allInputs []string
+	for _, corpus := range ro.corpus {
+		allInputs = append(allInputs, corpus.data.Text)
+	}
+	mutator := squirrel.NewGoFuzzMutator(data.Text, allInputs)
+
 	nm := 1 + m.r.Exp2()
 	for iter := 0; iter < nm; iter++ {
-		// todo: mutate here
-		break
+		err := mutator.MutateOneStep()
+		if err != nil {
+			iter--
+			continue
+		}
 	}
-	if res.len() > MaxInputSize {
-		// todo: trunk ast
+	res.Text = mutator.GetResult()
+	for res.len() > MaxInputSize {
+		// todo: implement trunk
+		panic(fmt.Sprintf("mutation result too loong: %d", res.len()))
 	}
 	return res
 }

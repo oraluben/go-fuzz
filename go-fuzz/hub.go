@@ -18,8 +18,9 @@ import (
 	. "github.com/oraluben/go-fuzz/internal/go-fuzz-types"
 
 	"github.com/pingcap/parser"
-	"github.com/pingcap/parser/ast"
 	_ "github.com/pingcap/tidb/types/parser_driver"
+
+	squirrel "github.com/pragmatwice/go-squirrel/mutator"
 )
 
 const (
@@ -62,7 +63,6 @@ type Hub struct {
 
 // SqlWrap is temporary struct used to help to adapt AST
 type SqlWrap struct {
-	root ast.Node
 	Text string
 }
 
@@ -80,11 +80,11 @@ func serialize(d SqlWrap) []byte {
 
 func deserialize(raw []byte) SqlWrap {
 	text := string(raw)
-	node, err := parser.New().ParseOneStmt(text, "", "")
+	_, err := parser.New().ParseOneStmt(text, "", "")
 	if err != nil {
 		panic(err)
 	}
-	return SqlWrap{node, text}
+	return SqlWrap{text}
 }
 
 // getInput generates the input feed to DBMS.
@@ -93,9 +93,7 @@ func (d SqlWrap) getInput() []byte {
 }
 
 func (d SqlWrap) copy() SqlWrap {
-	text := string(d.getInput())
-	node, _ := parser.New().ParseOneStmt(text, "", "")
-	return SqlWrap{node, text}
+	return SqlWrap{d.Text}
 }
 
 type ROData struct {
@@ -108,6 +106,7 @@ type ROData struct {
 	coverBlocks  map[int][]CoverBlock
 	sonarSites   []SonarSite
 	verse        *versifier.Verse
+	library      squirrel.Library
 }
 
 type Stats struct {

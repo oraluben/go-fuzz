@@ -58,7 +58,7 @@ func coordinatorMain(ln net.Listener) {
 	m.crashers = newPersistentSet(filepath.Join(*flagWorkdir, "crashers"))
 	m.corpus = newPersistentSet(filepath.Join(*flagWorkdir, "corpus"))
 	if len(m.corpus.m) == 0 {
-		m.corpus.add(Artifact{[]byte("SELECT 1;"), 0, false})
+		m.corpus.add(Artifact{[]byte("SELECT 1"), 0, false})
 	}
 
 	m.workers = make(map[int]*CoordinatorWorker)
