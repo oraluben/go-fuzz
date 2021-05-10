@@ -6,11 +6,13 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	squirrel "github.com/pragmatwice/go-squirrel/mutator"
 	"sort"
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 	"github.com/oraluben/go-fuzz/go-fuzz/internal/pcg"
+	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
+	"github.com/pragmatwice/go-squirrel"
+	"github.com/pragmatwice/go-squirrel/instantiator"
 )
 
 type Mutator struct {
@@ -52,21 +54,29 @@ func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 	_ = ro.corpus
 	res := data.copy()
 
-	var allInputs []string
-	for _, corpus := range ro.corpus {
-		allInputs = append(allInputs, corpus.data.Text)
+	mutator := squirrel.NewMutateConfig(instantiator.NewTableInfoContext(ti_fuzz.Scheme))
+
+	//for _, corpus := range ro.corpus {
+	//	err := mutator.AddToLib(corpus.data.getDML())
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//}
+	for _, lib := range ti_fuzz.Libs {
+		err := mutator.AddToLib(lib)
+		if err != nil {
+			panic(err)
+		}
 	}
-	mutator := squirrel.NewGoFuzzMutator(data.Text, allInputs)
 
 	nm := 1 + m.r.Exp2()
 	for iter := 0; iter < nm; iter++ {
-		err := mutator.MutateOneStep()
+		r, err := mutator.Mutate(data.getDML())
 		if err != nil {
 			iter--
-			continue
 		}
+		res.setDML(r)
 	}
-	res.Text = mutator.GetResult()
 	for res.len() > MaxInputSize {
 		// todo: implement trunk
 		panic(fmt.Sprintf("mutation result too loong: %d", res.len()))

@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stephens2424/writerset"
+
+	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
 )
 
 // Coordinator manages persistent fuzzer state like input corpus and crashers.
@@ -58,7 +60,7 @@ func coordinatorMain(ln net.Listener) {
 	m.crashers = newPersistentSet(filepath.Join(*flagWorkdir, "crashers"))
 	m.corpus = newPersistentSet(filepath.Join(*flagWorkdir, "corpus"))
 	if len(m.corpus.m) == 0 {
-		m.corpus.add(Artifact{[]byte("SELECT 1"), 0, false})
+		m.corpus.add(Artifact{[]byte(ti_fuzz.Seed), 0, false})
 	}
 
 	m.workers = make(map[int]*CoordinatorWorker)

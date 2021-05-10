@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/rpc"
@@ -18,7 +19,9 @@ import (
 	. "github.com/oraluben/go-fuzz/internal/go-fuzz-types"
 
 	"github.com/pingcap/parser"
-	_ "github.com/pingcap/tidb/types/parser_driver"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/format"
+	_ "github.com/pingcap/parser/test_driver"
 
 	squirrel "github.com/pragmatwice/go-squirrel/mutator"
 )
@@ -61,39 +64,81 @@ type Hub struct {
 	corpusOrigins [execCount]uint64
 }
 
+var p = parser.New()
+
 // SqlWrap is temporary struct used to help to adapt AST
 type SqlWrap struct {
-	Text string
+	Raw       string
+	nodeCache []ast.StmtNode
 }
 
-func (d SqlWrap) hash() Sig {
-	return hash(serialize(d))
+func (d *SqlWrap) hash() Sig {
+	return hash(serialize(*d))
 }
 
-func (d SqlWrap) len() int {
-	return len(serialize(d))
+func (d *SqlWrap) len() int {
+	return len(serialize(*d))
 }
 
 func serialize(d SqlWrap) []byte {
-	return d.getInput()
+	return []byte(d.Raw)
 }
 
 func deserialize(raw []byte) SqlWrap {
 	text := string(raw)
-	_, err := parser.New().ParseOneStmt(text, "", "")
+	_, _, err := p.Parse(text, "", "")
 	if err != nil {
 		panic(err)
 	}
-	return SqlWrap{text}
+	return SqlWrap{text, nil}
 }
 
-// getInput generates the input feed to DBMS.
-func (d SqlWrap) getInput() []byte {
-	return []byte(d.Text)
+func (d *SqlWrap) ensureNodes() {
+	if d.nodeCache == nil {
+		roots, _, err := p.Parse(d.Raw, "", "")
+		if err != nil {
+			panic(err)
+		}
+		d.nodeCache = roots
+	}
 }
 
-func (d SqlWrap) copy() SqlWrap {
-	return SqlWrap{d.Text}
+// getDML generates the input feed to DBMS.
+func (d *SqlWrap) getDML() string {
+	d.ensureNodes()
+	return restore(d.nodeCache[len(d.nodeCache)-1])
+}
+
+func (d *SqlWrap) getDDLs() []string {
+	d.ensureNodes()
+	var DDLs []string
+	for i := 0; i < len(d.nodeCache)-1; i++ {
+		DDLs = append(DDLs, restore(d.nodeCache[i]))
+	}
+	return DDLs
+}
+
+func (d *SqlWrap) copy() SqlWrap {
+	return SqlWrap{d.Raw, nil}
+}
+
+func (d *SqlWrap) setDML(mutation string) {
+	d.ensureNodes()
+	d.Raw = ""
+	for _, node := range d.nodeCache[:len(d.nodeCache)-1] {
+		d.Raw += restore(node) + ";"
+	}
+	d.Raw += mutation + ";"
+}
+
+func restore(stmt ast.Node) string {
+	buf := bytes.NewBufferString("")
+	rc := format.NewRestoreCtx(format.RestoreStringSingleQuotes, buf)
+	err := stmt.Restore(rc)
+	if err != nil {
+		panic(err)
+	}
+	return buf.String()
 }
 
 type ROData struct {

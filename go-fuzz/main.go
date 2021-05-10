@@ -37,7 +37,7 @@ var (
 	flagFunc              = flag.String("func", "", "function to fuzz")
 	flagDumpCover         = flag.Bool("dumpcover", false, "dump coverage profile into workdir")
 	flagDup               = flag.Bool("dup", false, "collect duplicate crashers")
-	flagTestOutput        = flag.Bool("testoutput", false, "print test binary output to stdout (for debugging only)")
+	flagRemoveDataDir     = flag.Bool("rm", false, "remove TiDB data dir after shutdown instance")
 	flagCoverCounters     = flag.Bool("covercounters", true, "use coverage hit counters")
 	flagSonar             = flag.Bool("sonar", false, "use sonar hints")
 	flagV                 = flag.Int("v", 0, "verbosity level")

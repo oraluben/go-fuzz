@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -37,6 +38,8 @@ type Testee struct {
 	downC       chan bool
 	down        bool
 	fnidx       uint8
+	ddl         []string
+	dataDir     string
 }
 
 // TestBinary handles communication with and restring of testee subprocesses.
@@ -104,6 +107,9 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 	if data.len() > MaxInputSize {
 		panic("input is too large")
 	}
+	ddls := data.getDDLs()
+
+	var retry bool
 	for {
 		// This is the only function that is executed regularly,
 		// so we tie some periodic checks to it.
@@ -112,14 +118,24 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 		bin.stats.execs++
 		if bin.testee == nil {
 			bin.stats.restarts++
-			bin.testee = newTestee(bin.fileName, bin.comm, bin.coverRegion, bin.inputRegion, bin.sonarRegion, bin.fnidx, bin.testeeBuffer)
+			// pass ddl to testee in the first run to init table / data
+			bin.testee = newTestee(bin.fileName, bin.comm, bin.coverRegion, bin.inputRegion, bin.sonarRegion, bin.fnidx, bin.testeeBuffer, ddls)
+			for _, ddl := range ddls {
+				if len(ddl) > MaxInputSize {
+					panic("DDL input is too large")
+				}
+				bin.testee.test([]byte(ddl))
+				//bin.testee.stdoutPipe.Read()
+			}
 		}
-		var retry bool
-		res, ns, cover, sonar, crashed, hanged, retry = bin.testee.test(data)
+
+		dml := data.getDML()
+		if *flagV > 0 {
+			log.Printf("query: %s", dml)
+		}
+		res, ns, cover, sonar, crashed, hanged, retry = bin.testee.test([]byte(dml))
 		if retry {
-			bin.testee.shutdown()
-			bin.testee = nil
-			continue
+			goto restartTestee
 		}
 		if crashed {
 			output = bin.testee.shutdown()
@@ -131,10 +147,13 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 			return
 		}
 		return
+	restartTestee:
+		bin.testee.shutdown()
+		bin.testee = nil
 	}
 }
 
-func newTestee(bin string, comm *Mapping, coverRegion, inputRegion, sonarRegion []byte, fnidx uint8, buffer []byte) *Testee {
+func newTestee(bin string, comm *Mapping, coverRegion, inputRegion, sonarRegion []byte, fnidx uint8, buffer []byte, ddl []string) *Testee {
 retry:
 	rIn, wIn, err := os.Pipe()
 	if err != nil {
@@ -149,14 +168,8 @@ retry:
 		log.Fatalf("failed to pipe: %v", err)
 	}
 	cmd := exec.Command(bin)
-	if *flagTestOutput {
-		// For debugging of testee failures.
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stdout
-	} else {
-		cmd.Stdout = wStdout
-		cmd.Stderr = wStdout
-	}
+	cmd.Stdout = wStdout
+	cmd.Stderr = wStdout
 	cmd.Env = append([]string{}, os.Environ()...)
 	cmd.Env = append(cmd.Env, "GOTRACEBACK=1")
 	setupCommMapping(cmd, comm, rOut, wIn)
@@ -175,6 +188,26 @@ retry:
 	rOut.Close()
 	wIn.Close()
 	wStdout.Close()
+
+	const limit = 100
+
+	// handle init()
+	var rawInitOut [limit]byte
+	n, err := rStdout.Read(rawInitOut[:])
+	if err != nil {
+		panic(err)
+	}
+	initOut := string(rawInitOut[:n])
+	if n == limit {
+		fmt.Printf("%s\n%d", initOut, n)
+		panic("init output too long")
+	}
+	dataDir := strings.TrimSpace(initOut)
+	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
+		panic(fmt.Sprintf("Init failed:\n%s", initOut))
+	}
+	fmt.Printf("TiDB data dir: %s\n", dataDir)
+
 	t := &Testee{
 		coverRegion: coverRegion,
 		inputRegion: inputRegion,
@@ -186,6 +219,8 @@ retry:
 		outputC:     make(chan []byte),
 		downC:       make(chan bool),
 		fnidx:       fnidx,
+		ddl:         ddl,
+		dataDir:     dataDir,
 	}
 	// Stdout reader goroutine.
 	go func() {
@@ -255,12 +290,10 @@ retry:
 }
 
 // test passes data for testing.
-func (t *Testee) test(data SqlWrap) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
+func (t *Testee) test(data []byte) (res int, ns uint64, cover, sonar []byte, crashed, hanged, retry bool) {
 	if t.down {
 		log.Fatalf("cannot test: testee is already shutdown")
 	}
-
-	textData := data.getInput()
 
 	// The test binary can accumulate significant amount of memory,
 	// so we recreate it periodically.
@@ -271,10 +304,10 @@ func (t *Testee) test(data SqlWrap) (res int, ns uint64, cover, sonar []byte, cr
 		return
 	}
 
-	copy(t.inputRegion[:], textData)
+	copy(t.inputRegion[:], data)
 	atomic.StoreInt64(&t.startTime, time.Now().UnixNano())
 	t.writebuf[0] = t.fnidx
-	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(textData)))
+	binary.LittleEndian.PutUint64(t.writebuf[1:], uint64(len(data)))
 	if _, err := t.outPipe.Write(t.writebuf[:]); err != nil {
 		if *flagV >= 1 {
 			log.Printf("write to testee failed: %v", err)
@@ -323,5 +356,8 @@ func (t *Testee) shutdown() (output []byte) {
 	t.inPipe.Close()
 	t.outPipe.Close()
 	t.stdoutPipe.Close()
+	if *flagRemoveDataDir {
+		os.RemoveAll(t.dataDir)
+	}
 	return out
 }
