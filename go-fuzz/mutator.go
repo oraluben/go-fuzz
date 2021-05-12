@@ -56,12 +56,6 @@ func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 
 	mutator := squirrel.NewMutateConfig(instantiator.NewTableInfoContext(ti_fuzz.Scheme))
 
-	//for _, corpus := range ro.corpus {
-	//	err := mutator.AddToLib(corpus.data.getDML())
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//}
 	for _, lib := range ti_fuzz.Libs {
 		err := mutator.AddToLib(lib)
 		if err != nil {
@@ -69,13 +63,14 @@ func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 		}
 	}
 
-	nm := 1 + m.r.Exp2()
-	for iter := 0; iter < nm; iter++ {
-		r, err := mutator.Mutate(data.getDML())
-		if err != nil {
-			iter--
+	for {
+		dml := data.getDML()
+		r, err := mutator.Mutate(dml)
+		if err != nil || r == "" {
+			continue
 		}
 		res.setDML(r)
+		break
 	}
 	for res.len() > MaxInputSize {
 		// todo: implement trunk

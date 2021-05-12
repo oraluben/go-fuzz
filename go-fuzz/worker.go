@@ -379,11 +379,12 @@ func (w *Worker) smash(data SqlWrap, depth int) {
 
 	// todo: byte smash removed, add SQL's
 
-	// Do a bunch of random mutations so that this input catches up with the rest.
-	for i := 0; i < 1e4; i++ {
-		tmp := w.mutator.mutate(data, ro)
-		w.testInput(tmp, depth+1, execFuzz)
-	}
+	//// Do a bunch of random mutations so that this input catches up with the rest.
+	//for i := 0; i < 1e4; i++ {
+	//	tmp := w.mutator.mutate(data, ro)
+	//	w.testInput(tmp, depth+1, execFuzz)
+	//}
+	_ = ro
 }
 
 func (w *Worker) testInput(data SqlWrap, depth int, typ execType) {
