@@ -20,3 +20,12 @@ git clone git@github.com:oraluben/tidb.git
 3. `cd <tidb-root>/tidb-server/fuzz`
 4. `go-fuzz-build -o tidb-fuzz.zip`
 5. `go-fuzz -bin tidb-fuzz.zip`
+
+### Dump & visualization
+
+`go-fuzz ... -dumpcover` will generate `coverprofile`
+`go tool cover -html=coverprofile`
+
+Note: `go-fuzz` will not always generate valid coverage file for `go tool cover`, you might
+need `sed -i"" -e '/0.0,1.1/d' coverprofile` (MacOS) or `sed -i '/0.0,1.1/d' coverprofile` (Linux) before generating
+HTML coverage report.
