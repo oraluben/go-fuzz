@@ -23,7 +23,10 @@ import (
 	"github.com/pingcap/parser/format"
 	_ "github.com/pingcap/parser/test_driver"
 
-	squirrel "github.com/pragmatwice/go-squirrel/mutator"
+	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
+	"github.com/pragmatwice/go-squirrel"
+	"github.com/pragmatwice/go-squirrel/instantiator"
+	"github.com/pragmatwice/go-squirrel/mutator"
 )
 
 const (
@@ -151,7 +154,7 @@ type ROData struct {
 	coverBlocks  map[int][]CoverBlock
 	sonarSites   []SonarSite
 	verse        *versifier.Verse
-	library      squirrel.Library
+	mutateConfig *squirrel.MutateConfig
 }
 
 type Stats struct {
@@ -193,7 +196,16 @@ func newHub(metadata MetaData) *Hub {
 		suppressions: make(map[Sig]struct{}),
 		coverBlocks:  coverBlocks,
 		sonarSites:   sonarSites,
+		mutateConfig: squirrel.NewMutateConfig(mutator.NewLibrary(), p, instantiator.NewTableInfoContext(ti_fuzz.Scheme)),
 	}
+
+	for _, lib := range ti_fuzz.Libs {
+		err := ro.mutateConfig.AddToLib(lib)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	// Prepare list of string and integer literals.
 	for _, lit := range metadata.Literals {
 		if lit.IsStr {

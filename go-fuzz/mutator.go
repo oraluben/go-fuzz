@@ -10,9 +10,6 @@ import (
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
 	"github.com/oraluben/go-fuzz/go-fuzz/internal/pcg"
-	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
-	"github.com/pragmatwice/go-squirrel"
-	"github.com/pragmatwice/go-squirrel/instantiator"
 )
 
 type Mutator struct {
@@ -54,18 +51,12 @@ func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 	_ = ro.corpus
 	res := data.copy()
 
-	mutator := squirrel.NewMutateConfig(instantiator.NewTableInfoContext(ti_fuzz.Scheme))
-
-	for _, lib := range ti_fuzz.Libs {
-		err := mutator.AddToLib(lib)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	for {
 		dml := data.getDML()
-		r, err := mutator.Mutate(dml)
+		r, err := ro.mutateConfig.Mutate(dml)
+		if err != nil && r == "" {
+			panic(err)
+		}
 		if err != nil || r == "" {
 			continue
 		}

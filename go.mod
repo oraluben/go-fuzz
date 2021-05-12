@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/pingcap/parser v0.0.0-20210427084954-8e8ed7927bde
-	github.com/pragmatwice/go-squirrel v0.0.0-20210512033026-f0e468058461
+	github.com/pragmatwice/go-squirrel v0.0.0-20210512080829-7548e4e0beac
 	github.com/stephens2424/writerset v1.0.2
 	golang.org/x/sys v0.0.0-20210503080704-8803ae5d1324 // indirect
 	golang.org/x/tools v0.1.0
