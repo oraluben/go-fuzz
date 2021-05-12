@@ -1,3 +1,0 @@
-[url "ssh://git@github.com/"]
-	# to `go get` private repo
-	insteadOf = https://github.com/
