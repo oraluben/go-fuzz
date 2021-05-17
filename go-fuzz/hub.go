@@ -4,11 +4,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net/rpc"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,8 +19,6 @@ import (
 	. "github.com/oraluben/go-fuzz/internal/go-fuzz-types"
 
 	"github.com/pingcap/parser"
-	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/format"
 	_ "github.com/pingcap/parser/test_driver"
 
 	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
@@ -67,12 +65,10 @@ type Hub struct {
 	corpusOrigins [execCount]uint64
 }
 
-var p = parser.New()
-
 // SqlWrap is temporary struct used to help to adapt AST
 type SqlWrap struct {
 	Raw       string
-	nodeCache []ast.StmtNode
+	nodeCache []string
 }
 
 func (d *SqlWrap) hash() Sig {
@@ -89,36 +85,32 @@ func serialize(d SqlWrap) []byte {
 
 func deserialize(raw []byte) SqlWrap {
 	text := string(raw)
-	_, _, err := p.Parse(text, "", "")
-	if err != nil {
-		panic(err)
-	}
+
 	return SqlWrap{text, nil}
 }
 
 func (d *SqlWrap) ensureNodes() {
 	if d.nodeCache == nil {
-		roots, _, err := p.Parse(d.Raw, "", "")
-		if err != nil {
-			panic(err)
+		slice := strings.Split(d.Raw, ";")
+
+		for _, v := range slice {
+			v = strings.Trim(v, " ")
+			if v != "" {
+				d.nodeCache = append(d.nodeCache, v)
+			}
 		}
-		d.nodeCache = roots
 	}
 }
 
 // getDML generates the input feed to DBMS.
 func (d *SqlWrap) getDML() string {
 	d.ensureNodes()
-	return restore(d.nodeCache[len(d.nodeCache)-1])
+	return d.nodeCache[len(d.nodeCache)-1]
 }
 
 func (d *SqlWrap) getDDLs() []string {
 	d.ensureNodes()
-	var DDLs []string
-	for i := 0; i < len(d.nodeCache)-1; i++ {
-		DDLs = append(DDLs, restore(d.nodeCache[i]))
-	}
-	return DDLs
+	return d.nodeCache[:len(d.nodeCache)-1]
 }
 
 func (d *SqlWrap) copy() SqlWrap {
@@ -129,19 +121,9 @@ func (d *SqlWrap) setDML(mutation string) {
 	d.ensureNodes()
 	d.Raw = ""
 	for _, node := range d.nodeCache[:len(d.nodeCache)-1] {
-		d.Raw += restore(node) + ";"
+		d.Raw += node + ";"
 	}
 	d.Raw += mutation + ";"
-}
-
-func restore(stmt ast.Node) string {
-	buf := bytes.NewBufferString("")
-	rc := format.NewRestoreCtx(format.RestoreStringSingleQuotes, buf)
-	err := stmt.Restore(rc)
-	if err != nil {
-		panic(err)
-	}
-	return buf.String()
 }
 
 type ROData struct {
@@ -196,7 +178,7 @@ func newHub(metadata MetaData) *Hub {
 		suppressions: make(map[Sig]struct{}),
 		coverBlocks:  coverBlocks,
 		sonarSites:   sonarSites,
-		mutateConfig: squirrel.NewMutateConfig(mutator.NewLibrary(), p, instantiator.NewTableInfoContext(ti_fuzz.Scheme)),
+		mutateConfig: squirrel.NewMutateConfig(mutator.NewLibrary(), parser.New(), instantiator.NewTableInfoContext(ti_fuzz.Scheme)),
 	}
 
 	for _, lib := range ti_fuzz.Libs {
