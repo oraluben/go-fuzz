@@ -115,6 +115,8 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 		// so we tie some periodic checks to it.
 		bin.periodicCheck()
 
+		var dml string
+
 		bin.stats.execs++
 		if bin.testee == nil {
 			bin.stats.restarts++
@@ -124,12 +126,18 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 				if len(ddl) > MaxInputSize {
 					panic("DDL input is too large")
 				}
-				bin.testee.test([]byte(ddl))
-				//bin.testee.stdoutPipe.Read()
+				res, ns, cover, sonar, crashed, hanged, retry = bin.testee.test([]byte(ddl))
+				if retry {
+					goto restartTestee
+				}
+				if crashed {
+					// we now consider crash on ddl impossible
+					panic("testee crashed on ddl")
+				}
 			}
 		}
 
-		dml := data.getDML()
+		dml = data.getDML()
 		if *flagV > 0 {
 			log.Printf("query: %s", dml)
 		}
