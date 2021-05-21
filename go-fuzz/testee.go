@@ -126,6 +126,9 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 				if len(ddl) > MaxInputSize {
 					panic("DDL input is too large")
 				}
+				if *flagV > 0 {
+					log.Printf("ddl: %s", ddl)
+				}
 				res, ns, cover, sonar, crashed, hanged, retry = bin.testee.test([]byte(ddl))
 				if retry {
 					goto restartTestee
@@ -139,9 +142,13 @@ func (bin *TestBinary) test(data SqlWrap) (res int, ns uint64, cover, sonar, out
 
 		dml = data.getDML()
 		if *flagV > 0 {
-			log.Printf("query: %s", dml)
+			log.Printf("dml: %s", dml)
 		}
 		res, ns, cover, sonar, crashed, hanged, retry = bin.testee.test([]byte(dml))
+		if *flagV > 1 {
+			log.Printf("status: crashed=%v, hanged=%v, retry=%v", crashed, hanged, retry)
+		}
+
 		if retry {
 			goto restartTestee
 		}
