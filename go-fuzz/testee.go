@@ -11,6 +11,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -204,7 +206,7 @@ retry:
 	wIn.Close()
 	wStdout.Close()
 
-	const limit = 100
+	const limit = 1024
 
 	// handle init()
 	var rawInitOut [limit]byte
@@ -371,8 +373,18 @@ func (t *Testee) shutdown() (output []byte) {
 	t.inPipe.Close()
 	t.outPipe.Close()
 	t.stdoutPipe.Close()
+
+	mysqlDataDir := strings.ReplaceAll(t.dataDir, "tidb-fuzz", "mysql-fuzz")
+	if pidStr, err := ioutil.ReadFile(path.Join(mysqlDataDir, "mysql.pid")); err == nil {
+		if pid, err := strconv.Atoi(string(pidStr)); err == nil {
+			log.Printf("testee: kill mysqld process %v\n", pid)
+			syscall.Kill(pid, syscall.SIGTERM)
+		}
+	}
+
 	if *flagRemoveDataDir {
 		os.RemoveAll(t.dataDir)
+		os.RemoveAll(mysqlDataDir)
 	}
 	return out
 }
