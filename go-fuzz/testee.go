@@ -339,7 +339,24 @@ func (t *Testee) test(data []byte) (res int, ns uint64, cover, sonar []byte, cra
 		Ns    uint64
 		Sonar uint64
 	}
-	_, err := io.ReadFull(t.inPipe, t.resbuf[:])
+
+	ec := make(chan error)
+	var err error
+
+	go func() {
+		_, err := io.ReadFull(t.inPipe, t.resbuf[:])
+		ec <- err
+	}()
+	select {
+	case err = <-ec:
+	case stdout := <-t.outputC:
+		crashed = true
+		go func() {
+			t.outputC <- stdout
+		}()
+		return
+	}
+
 	r := Reply{
 		Res:   binary.LittleEndian.Uint64(t.resbuf[:]),
 		Ns:    binary.LittleEndian.Uint64(t.resbuf[8:]),
