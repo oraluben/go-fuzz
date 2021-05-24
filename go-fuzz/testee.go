@@ -216,14 +216,13 @@ retry:
 	}
 	initOut := string(rawInitOut[:n])
 	if n == limit {
-		fmt.Printf("%s\n%d", initOut, n)
-		panic("init output too long")
+		panic(fmt.Sprintf("init output (length %d) too long:\n%s\n", n, initOut))
 	}
 	dataDir := strings.TrimSpace(initOut)
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		panic(fmt.Sprintf("Init failed:\n%s", initOut))
+		panic(fmt.Sprintf("init failed:\n%s", initOut))
 	}
-	fmt.Printf("TiDB data dir: %s\n", dataDir)
+	log.Printf("testee: started with TiDB data dir: %s\n", dataDir)
 
 	t := &Testee{
 		coverRegion: coverRegion,
@@ -393,7 +392,7 @@ func (t *Testee) shutdown() (output []byte) {
 
 	mysqlDataDir := strings.ReplaceAll(t.dataDir, "tidb-fuzz", "mysql-fuzz")
 	if pidStr, err := ioutil.ReadFile(path.Join(mysqlDataDir, "mysql.pid")); err == nil {
-		if pid, err := strconv.Atoi(string(pidStr)); err == nil {
+		if pid, err := strconv.Atoi(strings.Trim(string(pidStr), " \n")); err == nil {
 			log.Printf("testee: kill mysqld process %v\n", pid)
 			syscall.Kill(pid, syscall.SIGTERM)
 		}
