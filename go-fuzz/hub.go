@@ -23,7 +23,6 @@ import (
 
 	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
 	"github.com/pragmatwice/go-squirrel"
-	"github.com/pragmatwice/go-squirrel/instantiator"
 	"github.com/pragmatwice/go-squirrel/mutator"
 )
 
@@ -94,7 +93,7 @@ func (d *SqlWrap) ensureNodes() {
 		slice := strings.Split(d.Raw, ";")
 
 		for _, v := range slice {
-			v = strings.Trim(v, " ")
+			v = strings.Trim(v, " \n")
 			if v != "" {
 				d.nodeCache = append(d.nodeCache, v)
 			}
@@ -178,7 +177,7 @@ func newHub(metadata MetaData) *Hub {
 		suppressions: make(map[Sig]struct{}),
 		coverBlocks:  coverBlocks,
 		sonarSites:   sonarSites,
-		mutateConfig: squirrel.NewMutateConfig(mutator.NewLibrary(), parser.New(), instantiator.NewTableInfoContext(ti_fuzz.Scheme)),
+		mutateConfig: squirrel.NewMutateConfig(mutator.NewLibrary(), parser.New(), ti_fuzz.Scheme),
 	}
 
 	for _, lib := range ti_fuzz.Libs {

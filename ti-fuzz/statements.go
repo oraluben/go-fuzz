@@ -1,23 +1,29 @@
 package ti_fuzz
 
-import "github.com/pingcap/parser/model"
+import (
+	"github.com/pingcap/parser"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
+	"github.com/pragmatwice/go-squirrel/instantiator"
+)
 
-const Seed = "CREATE TABLE t1 (i1 INTEGER, c1 CHAR);" +
-	"INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c');" +
-	"SELECT 1 FROM t1 WHERE i1 = 1;"
+var Seed string
+var Libs []string
+var Scheme *instantiator.TableInfoContext
 
-var Scheme = map[model.CIStr][]model.CIStr{
-	model.NewCIStr("t1"): {
-		model.NewCIStr("i1"), model.NewCIStr("c1"),
-	},
-}
+func GetScheme(p *parser.Parser, sql string) (*instantiator.TableInfoContext, error) {
+	stmts, _, err := p.Parse(sql, "", "")
+	if err != nil {
+		return nil, err
+	}
 
-var Libs = []string{
-	"select * from c where c.a = c.b",
-	"select x, y from a order by z limit 1",
-	"select x from a where x < y order by x",
-	"select * from a where y != 1 and z > 100 group by x",
-	"select * from (select * from a) b join (select * from c) d",
-	"select count(a) from t where a = 1 and b + a > 100",
-	"select t1.a, t1.b, t2.c from t1 inner join t2 on t1.a = t2.b + t2.c",
+	ctx := instantiator.NewTableInfoContext(map[model.CIStr][]model.CIStr{})
+
+	for _, v := range stmts {
+		if ct, ok := v.(*ast.CreateTableStmt); ok {
+			ctx.Build(ct)
+		}
+	}
+
+	return ctx, nil
 }

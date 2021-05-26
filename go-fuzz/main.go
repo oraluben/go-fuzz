@@ -5,6 +5,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -13,11 +14,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	ti_fuzz "github.com/oraluben/go-fuzz/ti-fuzz"
+	"github.com/pingcap/parser"
 	"golang.org/x/tools/go/packages"
+
+	_ "github.com/pingcap/parser/test_driver"
 )
 
 //go:generate go build github.com/oraluben/go-fuzz/go-fuzz/vendor/github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs
@@ -37,11 +43,13 @@ var (
 	flagFunc              = flag.String("func", "", "function to fuzz")
 	flagDumpCover         = flag.Bool("dumpcover", false, "dump coverage profile into workdir")
 	flagDup               = flag.Bool("dup", false, "collect duplicate crashers")
-	flagRemoveDataDir     = flag.Bool("rm", false, "remove TiDB data dir after shutdown instance")
+	flagRemoveDataDir     = flag.Bool("rm", false, "remove TiDB and MySQL data dir after shutdown instance")
 	flagCoverCounters     = flag.Bool("covercounters", true, "use coverage hit counters")
 	flagSonar             = flag.Bool("sonar", false, "use sonar hints")
 	flagV                 = flag.Int("v", 0, "verbosity level")
 	flagHTTP              = flag.String("http", "", "HTTP server listen address (coordinator mode only)")
+	flagInitPath          = flag.String("init-path", "", "initial SQL file path, include ddl (create) and dml (insert, select) to initialize seed")
+	flagLibraryPath       = flag.String("lib-path", "", "library SQL file path, include select statement to be mutated to")
 
 	shutdown        uint32
 	shutdownC       = make(chan struct{})
@@ -55,6 +63,33 @@ func main() {
 	}
 	if *flagHTTP != "" && *flagWorker != "" {
 		log.Fatalf("both -http and -worker are specified")
+	}
+
+	if *flagInitPath == "" || *flagLibraryPath == "" {
+		log.Fatalf("both -init-path and -lib-path are expected")
+	}
+
+	initSql, err := ioutil.ReadFile(*flagInitPath)
+	if err != nil {
+		panic(err)
+	}
+
+	libSql, err := ioutil.ReadFile(*flagLibraryPath)
+	if err != nil {
+		panic(err)
+	}
+
+	ti_fuzz.Seed = strings.Trim(string(initSql), " \n")
+
+	ti_fuzz.Scheme, err = ti_fuzz.GetScheme(parser.New(), ti_fuzz.Seed)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, v := range strings.Split(string(libSql), ";") {
+		if tv := strings.Trim(v, " \n"); tv != "" {
+			ti_fuzz.Libs = append(ti_fuzz.Libs, tv)
+		}
 	}
 
 	go func() {
