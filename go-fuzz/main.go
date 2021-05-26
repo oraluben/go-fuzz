@@ -33,7 +33,7 @@ import (
 
 var (
 	flagWorkdir           = flag.String("workdir", ".", "dir with persistent work data")
-	flagProcs             = flag.Int("procs", runtime.NumCPU(), "parallelism level")
+	flagProcs             = flag.Int("procs", 1, "parallelism level")
 	flagTimeout           = flag.Int("timeout", 10, "test timeout, in seconds")
 	flagMinimize          = flag.Duration("minimize", 1*time.Minute, "time limit for input minimization")
 	flagCoordinator       = flag.String("coordinator", "", "coordinator mode (value is coordinator address)")
