@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"sort"
 
 	. "github.com/oraluben/go-fuzz/go-fuzz-defs"
@@ -55,7 +56,9 @@ func (m *Mutator) mutate(data SqlWrap, ro *ROData) SqlWrap {
 		dml := data.getDML()
 		r, err := ro.mutateConfig.Mutate(dml)
 		if err != nil && r == "" {
-			panic(err)
+			// we should not ignore this error because it implies there is some bug in go-squirrel
+			log.Printf("error while mutating %v : %v", dml, err)
+			continue
 		}
 		if err != nil || r == "" {
 			continue
