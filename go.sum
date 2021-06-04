@@ -43,6 +43,10 @@ github.com/pragmatwice/go-squirrel v0.0.0-20210512033026-f0e468058461 h1:z0c39Hg
 github.com/pragmatwice/go-squirrel v0.0.0-20210512033026-f0e468058461/go.mod h1:1R2GPC2V92WUQrnK20S/iJklPlqdrq7E3Mybb0/yLDI=
 github.com/pragmatwice/go-squirrel v0.0.0-20210512080829-7548e4e0beac h1:jxb9oph+kQU2Nt49QkqQTc13XQEB+Eq4AVME/2ck+MY=
 github.com/pragmatwice/go-squirrel v0.0.0-20210512080829-7548e4e0beac/go.mod h1:1R2GPC2V92WUQrnK20S/iJklPlqdrq7E3Mybb0/yLDI=
+github.com/pragmatwice/go-squirrel v0.0.0-20210604090611-78ffc2bb4135 h1:pUBzsX5kOjtdEnm2VCWJGrEeN0swdYU4T/W4HoPL+eI=
+github.com/pragmatwice/go-squirrel v0.0.0-20210604090611-78ffc2bb4135/go.mod h1:1R2GPC2V92WUQrnK20S/iJklPlqdrq7E3Mybb0/yLDI=
+github.com/pragmatwice/go-squirrel v0.0.0-20210604093609-5965b3f69956 h1:M/Nc8EfJviDE+tcFNRDHrnA+1wKim1qOaK4OfKyaO2Y=
+github.com/pragmatwice/go-squirrel v0.0.0-20210604093609-5965b3f69956/go.mod h1:1R2GPC2V92WUQrnK20S/iJklPlqdrq7E3Mybb0/yLDI=
 github.com/remyoudompheng/bigfft v0.0.0-20190728182440-6a916e37a237/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/robertkrimen/godocdown v0.0.0-20130622164427-0bfa04905481/go.mod h1:C9WhFzY47SzYBIvzFqSvHIR6ROgDo4TtdTuRaOMjF/s=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
