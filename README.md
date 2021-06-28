@@ -34,7 +34,7 @@ Original README of go-fuzz has been renamed to `README.go-fuzz.md`
 1. Build the instrumented TiDB 
       ```
       cd <oraluben/tidb>/tidb-server/fuzz
-      ti-fuzz-build -o tidb-fuzz.zip
+      <oraluben/go-fuzz/ti-fuzz-build> -o tidb-fuzz.zip
       ```
 
 ### Config
