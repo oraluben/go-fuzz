@@ -38,8 +38,8 @@ Original README of go-fuzz has been renamed to `README.go-fuzz.md`
       ```
 
 ### Config
-There are two sql files required for fuzzing TiDB: <br/>
-1. Initial SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.init.sql)
+There are two sql files required for fuzzing TiDB:
+1. Initial SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.init.sql) <br/>
 This SQL file is used to initialize the fuzzing, so it is the first seed of the mutation procedure. Usually, it is composed of some DDLs such as `CREATE TABLE` followed by some DMLs like `INSERT`, and the last statement of this file must be a `SELECT` or set operation statement, i.e. `UNION`. <br/>
 (Because the only supported statement to mutate is select or set operation statements until now, and `WITH` clauses is also supported)
 1. Mutation Library SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.lib.sql) <br/>
