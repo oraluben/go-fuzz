@@ -38,12 +38,12 @@ Original README of go-fuzz has been renamed to `README.go-fuzz.md`
       ```
 
 ### Config
-There are two sql files required for fuzzing TiDB:
+There are two sql files required for fuzzing TiDB: <br/>
 1. Initial SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.init.sql)
-      This SQL file is used to initialize the fuzzing, so it is the first seed of the mutation procedure. Usually, it is composed of some DDLs such as `CREATE TABLE` followed by some DMLs like `INSERT`, and the last statement of this file must be a `SELECT` or set operation statement, i.e. `UNION`. 
-      (Because the only supported statement to mutate is select or set operation statements until now, and `WITH` clauses is also supported)
-1. Mutation Library SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.lib.sql)
-      This SQL file is used to control what can be mutate to: all nodes of statements in the file can be selected to replace existing nodes in seeds.
+This SQL file is used to initialize the fuzzing, so it is the first seed of the mutation procedure. Usually, it is composed of some DDLs such as `CREATE TABLE` followed by some DMLs like `INSERT`, and the last statement of this file must be a `SELECT` or set operation statement, i.e. `UNION`. <br/>
+(Because the only supported statement to mutate is select or set operation statements until now, and `WITH` clauses is also supported)
+1. Mutation Library SQL file: [(example)](https://github.com/oraluben/go-fuzz/blob/ti-fuzz/ti-fuzz/example.lib.sql) <br/>
+This SQL file is used to control what can be mutate to: all nodes of statements in the file can be selected to replace existing nodes in seeds.
 
 More examples can be found in every test directory of [ti-fuzz-corpus](https://github.com/PingCAP-QE/ti-fuzz-corpus).
 
@@ -129,15 +129,15 @@ need `sed -i"" -e '/0.0,1.1/d' coverprofile` (MacOS) or `sed -i '/0.0,1.1/d' cov
 HTML coverage report.
 
 ### Q&A
-1. How to run faster?
-      You can use multiple process mode by `-procs N`, where `N` is the number of processes
+1. How to run faster? <br/>
+You can use multiple process mode by `-procs N`, where `N` is the number of processes
 
 
-1. Can I temporarily stop Ti Fuzz and resume it after a while?
-      Yes! All generated seeds will be saved in `./corpus` and the next execution will quickly revert to the previous coverage.
+1. Can I temporarily stop Ti Fuzz and resume it after a while?  <br/>
+Yes! All generated seeds will be saved in `./corpus` and the next execution will quickly revert to the previous coverage.
 
-1. Why does Ti Fuzz report `testee crashed on ddl`?
-      You should check your initial SQL file, where some crashes happened.
+1. Why does Ti Fuzz report `testee crashed on ddl`? <br/>
+You should check your initial SQL file, where some crashes happened.
 
-1. Why does Ti Fuzz report `error while mutating ...`?
-      Something is wrong in the mutator, please report this error to us!
+1. Why does Ti Fuzz report `error while mutating ...`? <br/>
+Something is wrong in the mutator, please report this error to us!
