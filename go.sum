@@ -46,6 +46,10 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pragmatwice/go-squirrel v0.0.0-20210616074601-62061b1232b5 h1:6jNu2z6MCzbt7MS37n/XKurLRecftHVs0C4ZZ1HhBeo=
 github.com/pragmatwice/go-squirrel v0.0.0-20210616074601-62061b1232b5/go.mod h1:xz2YuyM/gjrwH6G7lQoXqadnmqrTCLU1AD4RM/iAAos=
+github.com/pragmatwice/go-squirrel v0.0.0-20210625074353-b3ae58c9203a h1:ahl+pO/P9JOmTFIiGZVA2ObAhtCZUSVPe5rUj++V9ho=
+github.com/pragmatwice/go-squirrel v0.0.0-20210625074353-b3ae58c9203a/go.mod h1:xz2YuyM/gjrwH6G7lQoXqadnmqrTCLU1AD4RM/iAAos=
+github.com/pragmatwice/go-squirrel v0.0.0-20210705071237-e1ff19983983 h1:Uu7R97o+BwxpTs2B0XNDKVm7F8m5Zgbz3YG6nbVgQTg=
+github.com/pragmatwice/go-squirrel v0.0.0-20210705071237-e1ff19983983/go.mod h1:xz2YuyM/gjrwH6G7lQoXqadnmqrTCLU1AD4RM/iAAos=
 github.com/remyoudompheng/bigfft v0.0.0-20190728182440-6a916e37a237/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/robertkrimen/godocdown v0.0.0-20130622164427-0bfa04905481/go.mod h1:C9WhFzY47SzYBIvzFqSvHIR6ROgDo4TtdTuRaOMjF/s=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
